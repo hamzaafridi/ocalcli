@@ -1,0 +1,17 @@
+msal
+httpx
+typer
+rich
+python-dateutil
+icalendar
+platformdirs
+pydantic
+toml
+
+[dev]
+pytest
+ruff
+black
+mypy
+types-python-dateutil
+types-requests

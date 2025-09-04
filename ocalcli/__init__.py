@@ -5,4 +5,4 @@ except ImportError:
     warnings.warn('Failed to load __version__ from setuptools-scm')
     __version__ = '__unknown__'
 
-__program__ = 'gcalcli'
+__program__ = 'ocalcli'

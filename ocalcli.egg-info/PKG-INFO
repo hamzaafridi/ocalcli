@@ -1,0 +1,305 @@
+Metadata-Version: 2.4
+Name: ocalcli
+Version: 0.1.dev615+g2d25ec063.d20250904
+Summary: Outlook Calendar Command Line Interface
+Author: Eric Davis, Brian Hartvigsen, Joshua Crowgey
+Maintainer: David Barnett, Martin Dengler
+License: MIT
+Project-URL: Repository, https://github.com/insanum/ocalcli
+Project-URL: Issues, https://github.com/insanum/ocalcli/issues
+Project-URL: Changelog, https://github.com/insanum/ocalcli/blob/HEAD/ChangeLog
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: msal
+Requires-Dist: httpx
+Requires-Dist: typer
+Requires-Dist: rich
+Requires-Dist: python-dateutil
+Requires-Dist: icalendar
+Requires-Dist: platformdirs
+Requires-Dist: pydantic
+Requires-Dist: toml
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: types-python-dateutil; extra == "dev"
+Requires-Dist: types-requests; extra == "dev"
+Dynamic: license-file
+
+# ocalcli - Outlook Calendar Command Line Interface
+
+A command-line interface for Microsoft Outlook/Office 365 calendars, inspired by gcalcli but built for Microsoft Graph API.
+
+## Features
+
+- **Calendar Management**: View, create, edit, and delete calendar events
+- **Natural Language**: Quick event creation with natural language parsing
+- **Multiple Formats**: Rich terminal output and JSON export for scripting
+- **Time Zone Support**: Automatic timezone handling with configurable defaults
+- **ICS Import**: Import events from .ics files
+- **Search**: Full-text search across events
+- **Authentication**: Secure OAuth2 device code flow with token caching
+
+## Installation
+
+### From Source
+
+```bash
+git clone https://github.com/insanum/ocalcli.git
+cd ocalcli
+pip install -e .
+```
+
+### With pipx (recommended)
+
+```bash
+pipx install ocalcli
+```
+
+## Quick Start
+
+1. **Configure ocalcli**:
+   ```bash
+   ocalcli configure
+   ```
+   This will prompt you for:
+   - Azure app registration client ID (default provided)
+   - Azure tenant ID (defaults to "organizations")
+   - Default timezone
+
+2. **View your calendar**:
+   ```bash
+   ocalcli agenda
+   ```
+
+3. **Add an event**:
+   ```bash
+   ocalcli add "Team Meeting" --start "2025-01-15T14:00" --end "2025-01-15T15:00"
+   ```
+
+4. **Use natural language**:
+   ```bash
+   ocalcli quickadd "Tomorrow 4pm: Coffee with Ali @ Cafe Nero"
+   ```
+
+## Commands
+
+### `ocalcli configure`
+Configure ocalcli with your Azure app registration details.
+
+### `ocalcli agenda [OPTIONS]`
+Show calendar agenda for a date range.
+
+**Options:**
+- `--start YYYY-MM-DD`: Start date (default: today)
+- `--end YYYY-MM-DD`: End date (default: +7 days)
+- `--tz TIMEZONE`: Timezone override
+- `--query TEXT`: Search query
+- `--json`: Output as JSON
+
+### `ocalcli list [OPTIONS]`
+List events for a specific date (alias for agenda).
+
+**Options:**
+- `--date YYYY-MM-DD`: Specific date
+- `--tz TIMEZONE`: Timezone override
+- `--json`: Output as JSON
+
+### `ocalcli add SUBJECT [OPTIONS]`
+Add a new event to the calendar.
+
+**Options:**
+- `--start DATETIME`: Start time (required)
+- `--end DATETIME`: End time (required)
+- `--location TEXT`: Event location
+- `--body TEXT`: Event description
+- `--attendee EMAIL`: Attendee email (can be used multiple times)
+- `--reminder MINUTES`: Reminder minutes before start
+- `--all-day`: All-day event
+- `--recurrence RRULE`: Recurrence rule
+- `--tz TIMEZONE`: Timezone override
+
+### `ocalcli edit EVENT_ID [OPTIONS]`
+Edit an existing event.
+
+**Options:**
+- `--subject TEXT`: New subject
+- `--start DATETIME`: New start time
+- `--end DATETIME`: New end time
+- `--location TEXT`: New location
+- `--body TEXT`: New description
+- `--attendee EMAIL`: New attendees
+- `--reminder MINUTES`: New reminder minutes
+- `--tz TIMEZONE`: Timezone override
+
+### `ocalcli delete EVENT_ID [OPTIONS]`
+Delete an event.
+
+**Options:**
+- `-y, --yes`: Skip confirmation
+
+### `ocalcli search QUERY [OPTIONS]`
+Search for events.
+
+**Options:**
+- `--start YYYY-MM-DD`: Start date filter
+- `--end YYYY-MM-DD`: End date filter
+- `--tz TIMEZONE`: Timezone override
+- `--json`: Output as JSON
+
+### `ocalcli import-ics FILE_PATH [OPTIONS]`
+Import events from an ICS file.
+
+**Options:**
+- `--calendar CALENDAR_ID`: Target calendar ID
+
+### `ocalcli quickadd TEXT [OPTIONS]`
+Add an event using natural language.
+
+**Options:**
+- `--tz TIMEZONE`: Timezone override
+
+**Examples:**
+- `"Tomorrow 4pm: Coffee with Ali @ Cafe Nero"`
+- `"Monday 9am: Standup"`
+- `"Next Friday 2pm: Project review"`
+
+## Azure App Registration
+
+To use ocalcli, you need to create an Azure app registration:
+
+1. Go to [Azure Portal](https://portal.azure.com)
+2. Navigate to "Azure Active Directory" > "App registrations"
+3. Click "New registration"
+4. Enter a name (e.g., "ocalcli")
+5. Select "Accounts in any organizational directory and personal Microsoft accounts"
+6. Click "Register"
+7. Note the "Application (client) ID"
+8. Go to "API permissions" and add:
+   - Microsoft Graph > Calendars.ReadWrite
+   - Microsoft Graph > offline_access
+9. Grant admin consent for your organization
+
+## Configuration
+
+Configuration is stored in:
+- **Windows**: `%APPDATA%\\ocalcli\\config.toml`
+- **macOS**: `~/Library/Application Support/ocalcli/config.toml`
+- **Linux**: `~/.config/ocalcli/config.toml`
+
+Token cache is stored in the same directory as `msal_token_cache.bin`.
+
+### Environment Variables
+
+- `OCALCLI_CLIENT_ID`: Azure app registration client ID
+- `OCALCLI_TENANT`: Azure tenant ID
+- `OCALCLI_TZ`: Default timezone
+- `OCALCLI_CALENDAR_ID`: Default calendar ID
+
+## Time Zone Handling
+
+- Defaults to your system timezone
+- Can be overridden with `--tz` flag or `OCALCLI_TZ` environment variable
+- Supports all standard timezone names (e.g., "Europe/Dublin", "America/New_York")
+- Naive datetimes are automatically localized to the specified timezone
+
+## Recurrence Support
+
+Currently supports a subset of RRULE patterns:
+- `FREQ=DAILY` with `INTERVAL`
+- `FREQ=WEEKLY` with `INTERVAL` and `BYDAY`
+
+Example:
+```bash
+ocalcli add "Daily Standup" --start "2025-01-15T09:00" --end "2025-01-15T09:30" --recurrence "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+```
+
+## JSON Output
+
+All commands support `--json` flag for machine-readable output:
+
+```bash
+ocalcli agenda --json | jq '.[0].subject'
+```
+
+## Examples
+
+### View this week's agenda
+```bash
+ocalcli agenda
+```
+
+### Add a meeting with attendees
+```bash
+ocalcli add "Project Review" \
+  --start "2025-01-15T14:00" \
+  --end "2025-01-15T15:00" \
+  --location "Conference Room A" \
+  --attendee "alice@company.com" \
+  --attendee "bob@company.com" \
+  --body "Quarterly project review meeting"
+```
+
+### Search for meetings
+```bash
+ocalcli search "project review"
+```
+
+### Quick add with natural language
+```bash
+ocalcli quickadd "Tomorrow 2pm: Client call @ Office"
+```
+
+### Import from ICS file
+```bash
+ocalcli import-ics events.ics
+```
+
+## Development
+
+### Setup
+```bash
+git clone https://github.com/insanum/ocalcli.git
+cd ocalcli
+pip install -e ".[dev]"
+```
+
+### Running Tests
+```bash
+pytest
+```
+
+### Code Formatting
+```bash
+black ocalcli tests
+ruff check ocalcli tests
+```
+
+## Roadmap
+
+- [ ] Google Calendar provider support
+- [ ] Export to ICS
+- [ ] Busy/free time lookup
+- [ ] Attendee response tracking
+- [ ] Enhanced recurrence support
+- [ ] Calendar sharing
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please see CONTRIBUTING.md for guidelines.
+
+## Acknowledgments
+
+Inspired by [gcalcli](https://github.com/insanum/gcalcli) - a Google Calendar CLI tool.

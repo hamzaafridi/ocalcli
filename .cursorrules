@@ -1,0 +1,274 @@
+Cursor Rules for ocalcli (Outlook Calendar CLI)
+🧭 High-level intent
+
+This repo is a fork-inspired rewrite of gcalcli, targeting Outlook/Microsoft 365 via Microsoft Graph.
+
+Preserve the familiar CLI UX from gcalcli (agenda/list/add/edit/delete/search/import/quickadd) but with a pluggable provider layer.
+
+Default provider: Outlook/Graph; Google provider is a stub (for future parity).
+
+Prefer clean, modern Python tooling and security best practices.
+
+✅ Target environment
+
+Python: 3.11+
+
+Packaging: pyproject.toml with script entrypoint ocalcli = "ocalcli.cli:app"
+
+Install target: pipx friendly
+
+📦 Dependencies (runtime)
+
+msal (Microsoft auth, device-code flow)
+
+httpx (HTTP client; timeouts & retries)
+
+typer (CLI)
+
+rich (terminal tables/output)
+
+python-dateutil
+
+zoneinfo (stdlib) or pytz only if truly needed
+
+icalendar (for .ics import)
+
+Optional: parsedatetime for quickadd (if used), otherwise keep our minimal parser.
+
+🧪 Dev & QA
+
+pytest
+
+ruff + black
+
+mypy (strict on our modules; allow # type: ignore[call-arg] sparingly for Graph payloads)
+
+Add basic integration tests guarded by OCALCLI_IT=1
+
+🗂️ Project structure (authoritative)
+ocalcli/
+  __init__.py
+  cli.py                 # Typer commands
+  config.py              # config dir & file handling, env overrides
+  timeutils.py           # tz detection, parsing, formatting
+  quickadd.py            # minimal natural-ish parser
+  models.py              # Event/Recurrence/Reminder dataclasses
+  auth/
+    __init__.py
+    outlook_auth.py      # msal device-code + token cache
+  providers/
+    __init__.py
+    base.py              # CalendarProvider ABC
+    outlook.py           # Graph implementation
+    google.py            # stub (raise NotImplementedError)
+tests/
+  unit/
+  integration/
+scripts/
+  dev.sh
+  release.sh
+pyproject.toml
+README.md
+LICENSE
+
+🔒 Security rules (must follow)
+
+Never log tokens or full Graph responses. Redact PII where feasible.
+
+Store token cache under config dir:
+
+Linux: ~/.config/ocalcli/
+
+macOS: ~/Library/Application Support/ocalcli/
+
+Windows: %APPDATA%\ocalcli\
+
+Scopes: Calendars.ReadWrite offline_access. Let tenant default to organizations, allow override.
+
+Do not include client secrets. Support public client app only (device-code flow).
+
+🧠 Behavioral rules
+
+Time zone: default to system tz; allow --tz. If user passes naive datetimes, localize to chosen tz.
+
+All-day events: encode as midnight→midnight (same tz). Set Graph isAllDay.
+
+Recurrence: support subset (DAILY/WEEKLY + INTERVAL + BYDAY). Warn and degrade gracefully if unsupported.
+
+CLI flags parity with gcalcli is nice-to-have, not required. Focus on: agenda, list, add, edit, delete, search, import, quickadd.
+
+Provide --json output for scripting on agenda/list/search.
+
+Exit non-zero with actionable messages on errors.
+
+🔧 Refactor guidance from gcalcli
+
+Keep UX patterns (command names, intuitive flags, pretty tables).
+
+Do not carry over Google-specific auth or API client code.
+
+Replace any legacy httplib2/oauth2client style with httpx + msal.
+
+Replace ad-hoc printing with rich tables.
+
+Replace argparse with typer (or keep argparse only if it significantly simplifies porting—default to Typer).
+
+🗣️ Code style
+
+Use ruff (lint) + black (format).
+
+Top-of-file module docstrings explaining purpose and external side-effects.
+
+Public functions/classes have concise docstrings with examples where helpful.
+
+Prefer dataclasses for models + type hints everywhere.
+
+One responsibility per module; keep cli.py thin—delegate to provider/services.
+
+🧰 HTTP client defaults
+
+Base URL: https://graph.microsoft.com/v1.0
+
+httpx.Client with:
+
+timeout: 15s
+
+retries/backoff on 429/5xx (respect Retry-After)
+
+auth injection via wrapper/middleware
+
+ConsistencyLevel: eventual where Graph $search= is used
+
+🧩 Provider interface (contract)
+
+CalendarProvider methods: agenda(start, end, query?), get(id), add(event), edit(id, patch), delete(id)
+
+Outlook provider must map to/from Event dataclass via from_graph_event/to_graph_event
+
+attendees are simple email strings in our model; convert to Graph format in provider.
+
+🧪 Tests to maintain
+
+tz conversions (naive→aware, round-trip to Graph payload)
+
+all-day encode/decode
+
+recurrence subset mapping (weekly MO,WE; daily interval 2)
+
+minimal quickadd parsing
+
+provider mapping fidelity (idempotent-ish serialize/deserialize on supported fields)
+
+🧾 Commands & flags (authoritative surface)
+
+ocalcli configure
+
+ocalcli agenda [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--tz Europe/Dublin] [--json]
+
+ocalcli list [--date YYYY-MM-DD] [--tz ...] [--json]
+
+ocalcli add --subject "..." --start "YYYY-MM-DDTHH:MM" --end "..." [--all-day] [--location "..."] [--attendee x@y]... [--body "..."] [--reminder 10] [--recurrence "RRULE:..."] [--tz ...]
+
+ocalcli edit <event-id> [--subject ...] [--start ...] [--end ...] [--location ...] [--attendee ...] [--body ...] [--reminder ...] [--recurrence ...] [--tz ...]
+
+ocalcli delete <event-id> [-y]
+
+ocalcli search "text" [--start ...] [--end ...] [--tz ...] [--json]
+
+ocalcli import path/to/file.ics [--calendar <id>]
+
+ocalcli quickadd "Tomorrow 4pm: Coffee with Ali @ Cafe Nero" [--tz ...]
+
+🧭 Configuration
+
+File: ${CONFIG_DIR}/config.toml
+
+client_id (required)
+
+tenant (default organizations)
+
+default_timezone
+
+default_calendar_id (optional)
+
+Token cache: ${CONFIG_DIR}/msal_token_cache.bin
+
+Env overrides: OCALCLI_CLIENT_ID, OCALCLI_TENANT, OCALCLI_TZ, OCALCLI_CALENDAR_ID
+
+🪓 Files Cursor may rewrite freely
+ocalcli/**/*.py
+tests/**/*.py
+pyproject.toml
+README.md
+Makefile
+
+🛑 Files to keep minimal or stubbed
+ocalcli/providers/google.py  # leave as NotImplementedError stubs
+
+🚫 Do NOT
+
+Commit secrets or private app IDs.
+
+Print raw tokens or full attendee email lists in logs (redact).
+
+Add heavyweight NLP for quickadd in v1.
+
+Expand scope beyond calendar endpoints.
+
+🧱 Error handling
+
+Convert Graph errors to user-friendly messages (surface status code and short reason).
+
+For 401/invalid_grant: instruct ocalcli configure (re-auth).
+
+For 403/scopes: hint required scopes and app registration steps.
+
+For invalid RRULE: warn and create single non-recurring event.
+
+🧾 Commit quality bar
+
+New/changed code is typed, tested, and formatted.
+
+CLI --help shows accurate flags and examples.
+
+README.md updated when CLI surface changes.
+
+🔭 Roadmap markers (leave TODOs)
+
+Google provider parity via Google Calendar API
+
+Export to .ics
+
+Busy/free lookups
+
+Attendee optionality and response tracking
+
+🧪 Minimal example snippets (for Cursor to follow)
+Event model sketch
+@dataclass
+class Event:
+    id: str | None
+    subject: str
+    body: str | None = None
+    location: str | None = None
+    start: datetime | None = None
+    end: datetime | None = None
+    all_day: bool = False
+    attendees: list[str] = field(default_factory=list)
+    recurrence: Recurrence | None = None
+    reminders: Reminder | None = None
+    raw: dict = field(default_factory=dict)
+
+Graph mapping shape (reference)
+# to Graph
+{
+  "subject": "...",
+  "body": {"contentType": "text", "content": "..."},
+  "start": {"dateTime": "2025-09-05T09:00:00", "timeZone": "Europe/Dublin"},
+  "end":   {"dateTime": "2025-09-05T09:30:00", "timeZone": "Europe/Dublin"},
+  "location": {"displayName": "Room A"},
+  "attendees": [{"emailAddress": {"address": "x@y.com"}, "type": "required"}],
+  "isAllDay": false,
+  "isReminderOn": true,
+  "reminderMinutesBeforeStart": 10
+}
