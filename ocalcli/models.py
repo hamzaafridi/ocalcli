@@ -68,13 +68,59 @@ def from_graph_event(data: dict[str, Any]) -> Event:
             # All-day events use date only
             start_dt = datetime.fromisoformat(start_data["dateTime"][:10])
         else:
-            start_dt = datetime.fromisoformat(start_data["dateTime"].replace("Z", "+00:00"))
+            # Normalize microseconds to 6 decimal places for Python compatibility
+            dt_str = start_data["dateTime"].replace("Z", "+00:00")
+            if '.' in dt_str:
+                # Find the decimal point and timezone separator
+                dot_pos = dt_str.find('.')
+                tz_pos = dt_str.find('+', dot_pos)
+                if tz_pos == -1:
+                    tz_pos = dt_str.find('-', dot_pos)
+                if tz_pos == -1:
+                    tz_pos = len(dt_str)
+                
+                # Extract microseconds part
+                microsec_part = dt_str[dot_pos + 1:tz_pos]
+                if len(microsec_part) > 6:
+                    # Truncate to 6 decimal places
+                    microsec_part = microsec_part[:6]
+                elif len(microsec_part) < 6:
+                    # Pad with zeros to 6 decimal places
+                    microsec_part = microsec_part.ljust(6, '0')
+                
+                # Reconstruct the datetime string
+                dt_str = dt_str[:dot_pos + 1] + microsec_part + dt_str[tz_pos:]
+            
+            start_dt = datetime.fromisoformat(dt_str)
     
     if end_data := data.get("end"):
         if all_day:
             end_dt = datetime.fromisoformat(end_data["dateTime"][:10])
         else:
-            end_dt = datetime.fromisoformat(end_data["dateTime"].replace("Z", "+00:00"))
+            # Normalize microseconds to 6 decimal places for Python compatibility
+            dt_str = end_data["dateTime"].replace("Z", "+00:00")
+            if '.' in dt_str:
+                # Find the decimal point and timezone separator
+                dot_pos = dt_str.find('.')
+                tz_pos = dt_str.find('+', dot_pos)
+                if tz_pos == -1:
+                    tz_pos = dt_str.find('-', dot_pos)
+                if tz_pos == -1:
+                    tz_pos = len(dt_str)
+                
+                # Extract microseconds part
+                microsec_part = dt_str[dot_pos + 1:tz_pos]
+                if len(microsec_part) > 6:
+                    # Truncate to 6 decimal places
+                    microsec_part = microsec_part[:6]
+                elif len(microsec_part) < 6:
+                    # Pad with zeros to 6 decimal places
+                    microsec_part = microsec_part.ljust(6, '0')
+                
+                # Reconstruct the datetime string
+                dt_str = dt_str[:dot_pos + 1] + microsec_part + dt_str[tz_pos:]
+            
+            end_dt = datetime.fromisoformat(dt_str)
     
     # Parse attendees
     attendees = []
@@ -149,13 +195,18 @@ def to_graph_event(event: Event) -> dict[str, Any]:
             }
         else:
             # Regular events with timezone
+            # Use the timezone from the configuration or default to UTC
+            from .config import Config
+            config = Config()
+            timezone_name = config.timezone or "UTC"
+            
             data["start"] = {
                 "dateTime": event.start.isoformat(),
-                "timeZone": str(event.start.tzinfo) if event.start.tzinfo else "UTC"
+                "timeZone": timezone_name
             }
             data["end"] = {
                 "dateTime": event.end.isoformat(),
-                "timeZone": str(event.end.tzinfo) if event.end.tzinfo else "UTC"
+                "timeZone": timezone_name
             }
     
     data["isAllDay"] = event.all_day

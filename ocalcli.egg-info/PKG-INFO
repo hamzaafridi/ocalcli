@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: ocalcli
-Version: 0.1.dev615+g2d25ec063.d20250904
+Version: 0.1.dev616+g1ba9c1c1e.d20250906
 Summary: Outlook Calendar Command Line Interface
 Author: Eric Davis, Brian Hartvigsen, Joshua Crowgey
 Maintainer: David Barnett, Martin Dengler

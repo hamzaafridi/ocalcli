@@ -9,7 +9,8 @@ from icalendar import Calendar as ICalendar
 
 from ..auth.outlook_auth import OutlookAuth
 from ..models import Event, from_graph_event, to_graph_event
-from .base import APIError, AuthenticationError, CalendarProvider, EventNotFoundError
+from .base import CalendarProvider
+from ..exceptions import APIError, AuthenticationError, EventNotFoundError
 
 
 class OutlookProvider(CalendarProvider):
@@ -83,7 +84,10 @@ class OutlookProvider(CalendarProvider):
         end_iso = end.isoformat()
         
         # Build URL
-        url = f"/me/calendars/{self.calendar_id}/calendarView"
+        if self.calendar_id == "primary":
+            url = "/me/calendar/calendarView"
+        else:
+            url = f"/me/calendars/{self.calendar_id}/calendarView"
         params = {
             "startDateTime": start_iso,
             "endDateTime": end_iso,
@@ -104,13 +108,19 @@ class OutlookProvider(CalendarProvider):
     
     def get(self, event_id: str) -> Event:
         """Get a specific event by ID."""
-        url = f"/me/calendars/{self.calendar_id}/events/{event_id}"
+        if self.calendar_id == "primary":
+            url = f"/me/calendar/events/{event_id}"
+        else:
+            url = f"/me/calendars/{self.calendar_id}/events/{event_id}"
         event_data = self._make_request("GET", url)
         return from_graph_event(event_data)
     
     def add(self, event: Event) -> Event:
         """Create a new event."""
-        url = f"/me/calendars/{self.calendar_id}/events"
+        if self.calendar_id == "primary":
+            url = "/me/calendar/events"
+        else:
+            url = f"/me/calendars/{self.calendar_id}/events"
         event_data = to_graph_event(event)
         
         response = self._make_request("POST", url, json=event_data)
@@ -118,7 +128,10 @@ class OutlookProvider(CalendarProvider):
     
     def edit(self, event_id: str, patch: dict) -> Event:
         """Update an existing event."""
-        url = f"/me/calendars/{self.calendar_id}/events/{event_id}"
+        if self.calendar_id == "primary":
+            url = f"/me/calendar/events/{event_id}"
+        else:
+            url = f"/me/calendars/{self.calendar_id}/events/{event_id}"
         
         # Convert patch to Graph format if needed
         graph_patch = self._convert_patch_to_graph(patch)
@@ -128,7 +141,10 @@ class OutlookProvider(CalendarProvider):
     
     def delete(self, event_id: str) -> None:
         """Delete an event."""
-        url = f"/me/calendars/{self.calendar_id}/events/{event_id}"
+        if self.calendar_id == "primary":
+            url = f"/me/calendar/events/{event_id}"
+        else:
+            url = f"/me/calendars/{self.calendar_id}/events/{event_id}"
         self._make_request("DELETE", url)
     
     def search(

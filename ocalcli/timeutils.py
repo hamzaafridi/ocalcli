@@ -1,7 +1,7 @@
 """Timezone utilities and datetime parsing for ocalcli."""
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
 
 import dateutil.parser
@@ -18,13 +18,9 @@ def get_system_timezone() -> str:
     if tz_name := os.getenv("OCALCLI_TZ"):
         return tz_name
     
-    # Get system timezone
-    try:
-        local_tz = tz.tzlocal()
-        return str(local_tz)
-    except Exception:
-        # Fallback to UTC
-        return "UTC"
+    # For now, use a reasonable default
+    # TODO: Implement proper system timezone detection
+    return "UTC"
 
 
 def parse_datetime(
@@ -124,6 +120,9 @@ def parse_date_range(
     
     if end_str:
         end_dt = parse_datetime(end_str, tz_name)
+        # If start and end are the same date, set end to end of day
+        if start_dt.date() == end_dt.date() and end_dt.time() == datetime.min.time():
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
     else:
         # Default to start + 7 days
         from datetime import timedelta
@@ -165,3 +164,62 @@ def normalize_all_day_event(start: datetime, end: datetime) -> tuple[datetime, d
     end_normalized = end.replace(hour=0, minute=0, second=0, microsecond=0)
     
     return start_normalized, end_normalized
+
+
+def get_today_range(timezone_name: Optional[str] = None) -> tuple[datetime, datetime]:
+    """Get start and end of today in the specified timezone.
+    
+    Args:
+        timezone_name: Timezone name (defaults to system timezone)
+        
+    Returns:
+        Tuple of (start_of_day, end_of_day)
+    """
+    tz_name = timezone_name or get_system_timezone()
+    tz_obj = tz.gettz(tz_name) or timezone.utc
+    
+    now = datetime.now(tz_obj)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    return start_of_day, end_of_day
+
+
+def get_yesterday_range(timezone_name: Optional[str] = None) -> tuple[datetime, datetime]:
+    """Get start and end of yesterday in the specified timezone.
+    
+    Args:
+        timezone_name: Timezone name (defaults to system timezone)
+        
+    Returns:
+        Tuple of (start_of_yesterday, end_of_yesterday)
+    """
+    tz_name = timezone_name or get_system_timezone()
+    tz_obj = tz.gettz(tz_name) or timezone.utc
+    
+    now = datetime.now(tz_obj)
+    yesterday = now - timedelta(days=1)
+    start_of_day = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    return start_of_day, end_of_day
+
+
+def get_tomorrow_range(timezone_name: Optional[str] = None) -> tuple[datetime, datetime]:
+    """Get start and end of tomorrow in the specified timezone.
+    
+    Args:
+        timezone_name: Timezone name (defaults to system timezone)
+        
+    Returns:
+        Tuple of (start_of_tomorrow, end_of_tomorrow)
+    """
+    tz_name = timezone_name or get_system_timezone()
+    tz_obj = tz.gettz(tz_name) or timezone.utc
+    
+    now = datetime.now(tz_obj)
+    tomorrow = now + timedelta(days=1)
+    start_of_day = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = tomorrow.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    return start_of_day, end_of_day

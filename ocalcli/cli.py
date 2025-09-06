@@ -14,9 +14,9 @@ from .auth.outlook_auth import OutlookAuth
 from .config import Config
 from .models import Event, Reminder, Recurrence
 from .providers.outlook import OutlookProvider
-from .providers.base import APIError, AuthenticationError, EventNotFoundError
+from .exceptions import APIError, AuthenticationError, EventNotFoundError
 from .quickadd import parse_quickadd
-from .timeutils import parse_datetime, parse_date_range, get_system_timezone
+from .timeutils import parse_datetime, parse_date_range, get_system_timezone, get_today_range, get_yesterday_range, get_tomorrow_range
 
 app = typer.Typer(
     name="ocalcli",
@@ -45,6 +45,50 @@ def get_provider() -> OutlookProvider:
         raise typer.Exit(1)
 
 
+def display_events(events: List[Event], title: str, json_output: bool = False):
+    """Display events in table or JSON format.
+    
+    Args:
+        events: List of events to display
+        title: Title for the table
+        json_output: Whether to output as JSON
+    """
+    if json_output:
+        # Output as JSON
+        events_data = []
+        for event in events:
+            event_data = {
+                "id": event.id,
+                "subject": event.subject,
+                "start": event.start.isoformat() if event.start else None,
+                "end": event.end.isoformat() if event.end else None,
+                "location": event.location,
+                "all_day": event.all_day,
+                "attendees": event.attendees
+            }
+            events_data.append(event_data)
+        
+        console.print(json.dumps(events_data, indent=2))
+    else:
+        # Output as table
+        table = Table(title=title)
+        table.add_column("ID", style="dim", width=20)
+        table.add_column("Start", style="cyan")
+        table.add_column("End", style="cyan")
+        table.add_column("Subject", style="green")
+        table.add_column("Location", style="yellow")
+        
+        for event in events:
+            start_str = event.start.strftime("%Y-%m-%d %H:%M") if event.start else "N/A"
+            end_str = event.end.strftime("%Y-%m-%d %H:%M") if event.end else "N/A"
+            location = event.location or ""
+            event_id = event.id[:20] + "..." if event.id and len(event.id) > 20 else (event.id or "N/A")
+            
+            table.add_row(event_id, start_str, end_str, event.subject, location)
+        
+        console.print(table)
+
+
 @app.command()
 def configure():
     """Configure ocalcli with Azure app registration details."""
@@ -62,23 +106,31 @@ def configure():
         else:
             client_id = typer.prompt("Azure app registration client ID")
     else:
-        client_id = typer.prompt(
-            "Azure app registration client ID",
-            default="04b07795-8ddb-461a-bbee-02f9e1bf7b46"
-        )
+        console.print("[yellow]No client ID configured. You need to create an Azure app registration.[/yellow]")
+        console.print()
+        console.print("To create one:")
+        console.print("1. Go to https://portal.azure.com")
+        console.print("2. Navigate to Azure Active Directory > App registrations")
+        console.print("3. Click 'New registration'")
+        console.print("4. Enter a name (e.g., 'ocalcli')")
+        console.print("5. Select 'Accounts in any organizational directory and personal Microsoft accounts'")
+        console.print("6. Click 'Register'")
+        console.print("7. Copy the 'Application (client) ID'")
+        console.print()
+        client_id = typer.prompt("Azure app registration client ID")
     
     # Get tenant
     current_tenant = config.tenant
     tenant = typer.prompt(
-        "Azure tenant ID (or 'organizations' for multi-tenant)",
-        default=current_tenant
+        "Azure tenant ID (or 'common' for multi-tenant)",
+        default=current_tenant or "common"
     )
     
     # Get timezone
     current_tz = config.timezone
     timezone = typer.prompt(
         "Default timezone",
-        default=current_tz
+        default=current_tz or "UTC"
     )
     
     # Save configuration
@@ -120,38 +172,95 @@ def agenda(
         # Get events
         events = list(provider.agenda(start_dt, end_dt, query))
         
-        if json_output:
-            # Output as JSON
-            events_data = []
-            for event in events:
-                event_data = {
-                    "id": event.id,
-                    "subject": event.subject,
-                    "start": event.start.isoformat() if event.start else None,
-                    "end": event.end.isoformat() if event.end else None,
-                    "location": event.location,
-                    "all_day": event.all_day,
-                    "attendees": event.attendees
-                }
-                events_data.append(event_data)
-            
-            console.print(json.dumps(events_data, indent=2))
-        else:
-            # Output as table
-            table = Table(title="Calendar Agenda")
-            table.add_column("Start", style="cyan")
-            table.add_column("End", style="cyan")
-            table.add_column("Subject", style="green")
-            table.add_column("Location", style="yellow")
-            
-            for event in events:
-                start_str = event.start.strftime("%Y-%m-%d %H:%M") if event.start else "N/A"
-                end_str = event.end.strftime("%Y-%m-%d %H:%M") if event.end else "N/A"
-                location = event.location or ""
-                
-                table.add_row(start_str, end_str, event.subject, location)
-            
-            console.print(table)
+        # Display events
+        display_events(events, "Calendar Agenda", json_output)
+    
+    except (AuthenticationError, APIError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def today(
+    tz: Optional[str] = typer.Option(None, "--tz", help="Timezone"),
+    query: Optional[str] = typer.Option(None, "--query", help="Search query"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON")
+):
+    """Show today's calendar agenda."""
+    try:
+        provider = get_provider()
+        config = Config()
+        timezone_name = tz or config.timezone
+        
+        # Get today's date range
+        start_dt, end_dt = get_today_range(timezone_name)
+        
+        # Get events
+        events = list(provider.agenda(start_dt, end_dt, query))
+        
+        # Display events
+        display_events(events, "Today's Calendar", json_output)
+    
+    except (AuthenticationError, APIError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def yesterday(
+    tz: Optional[str] = typer.Option(None, "--tz", help="Timezone"),
+    query: Optional[str] = typer.Option(None, "--query", help="Search query"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON")
+):
+    """Show yesterday's calendar agenda."""
+    try:
+        provider = get_provider()
+        config = Config()
+        timezone_name = tz or config.timezone
+        
+        # Get yesterday's date range
+        start_dt, end_dt = get_yesterday_range(timezone_name)
+        
+        # Get events
+        events = list(provider.agenda(start_dt, end_dt, query))
+        
+        # Display events
+        display_events(events, "Yesterday's Calendar", json_output)
+    
+    except (AuthenticationError, APIError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def tomorrow(
+    tz: Optional[str] = typer.Option(None, "--tz", help="Timezone"),
+    query: Optional[str] = typer.Option(None, "--query", help="Search query"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON")
+):
+    """Show tomorrow's calendar agenda."""
+    try:
+        provider = get_provider()
+        config = Config()
+        timezone_name = tz or config.timezone
+        
+        # Get tomorrow's date range
+        start_dt, end_dt = get_tomorrow_range(timezone_name)
+        
+        # Get events
+        events = list(provider.agenda(start_dt, end_dt, query))
+        
+        # Display events
+        display_events(events, "Tomorrow's Calendar", json_output)
     
     except (AuthenticationError, APIError) as e:
         console.print(f"[red]Error: {e}[/red]")

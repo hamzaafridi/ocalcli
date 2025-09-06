@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Iterable, Optional
 
 from ..models import Event
+from ..exceptions import EventNotFoundError, AuthenticationError, APIError
 
 
 class CalendarProvider(ABC):
@@ -114,16 +115,3 @@ class CalendarProvider(ABC):
         ...
 
 
-class EventNotFoundError(Exception):
-    """Raised when an event is not found."""
-    pass
-
-
-class AuthenticationError(Exception):
-    """Raised when authentication fails."""
-    pass
-
-
-class APIError(Exception):
-    """Raised when API calls fail."""
-    pass

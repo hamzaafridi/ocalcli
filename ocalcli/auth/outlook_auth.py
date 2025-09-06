@@ -9,17 +9,18 @@ from typing import Optional
 import msal
 from platformdirs import user_config_dir
 
-from ..providers.base import AuthenticationError
+from ..exceptions import AuthenticationError
 
 
 class OutlookAuth:
     """Handles Microsoft Graph authentication using MSAL."""
     
     # Microsoft Graph scopes
-    SCOPES = ["Calendars.ReadWrite", "offline_access"]
+    SCOPES = ["Calendars.ReadWrite"]
     
     # Default client ID for public client (can be overridden)
-    DEFAULT_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"  # Microsoft Graph PowerShell client
+    # Note: Users should create their own Azure app registration for production use
+    DEFAULT_CLIENT_ID = None  # No default - users must provide their own
     
     def __init__(self, client_id: Optional[str] = None, tenant: str = "organizations"):
         """Initialize authentication.
@@ -37,9 +38,14 @@ class OutlookAuth:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize MSAL app
+        if self.tenant == "organizations":
+            authority = "https://login.microsoftonline.com/common"
+        else:
+            authority = f"https://login.microsoftonline.com/{self.tenant}"
+            
         self.app = msal.PublicClientApplication(
             client_id=self.client_id,
-            authority=f"https://login.microsoftonline.com/{self.tenant}",
+            authority=authority,
             token_cache=self._load_token_cache()
         )
     

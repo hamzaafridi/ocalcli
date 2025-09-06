@@ -47,7 +47,7 @@ def parse_quickadd(text: str, timezone_name: Optional[str] = None) -> Event:
             
             if len(groups) == 3:
                 # Pattern with time and day
-                if groups[0] in ["tomorrow", "today", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+                if groups[0].lower() in ["tomorrow", "today", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
                     day_part = groups[0]
                     time_part = groups[1]
                     subject_part = groups[2]
@@ -56,7 +56,7 @@ def parse_quickadd(text: str, timezone_name: Optional[str] = None) -> Event:
                     day_part = groups[1]
                     subject_part = groups[2]
             elif len(groups) == 2:
-                if groups[0] in ["tomorrow", "today", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+                if groups[0].lower() in ["tomorrow", "today", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
                     # Day only, no time
                     day_part = groups[0]
                     time_part = "9am"
@@ -154,14 +154,21 @@ def _parse_datetime_from_parts(day_part: str, time_part: str, timezone_name: str
     elif not is_pm and hour == 12:
         hour = 0
     
+    
     # Create datetime
     dt = datetime.combine(target_date, datetime.min.time().replace(hour=hour, minute=minute))
     
     # Apply timezone
-    from dateutil import tz
-    tz_obj = tz.gettz(timezone_name)
-    if tz_obj:
-        dt = dt.replace(tzinfo=tz_obj)
+    try:
+        import pytz
+        tz_obj = pytz.timezone(timezone_name)
+        dt = tz_obj.localize(dt)
+    except (ImportError, pytz.exceptions.UnknownTimeZoneError):
+        # Fallback to dateutil
+        from dateutil import tz
+        tz_obj = tz.gettz(timezone_name)
+        if tz_obj:
+            dt = dt.replace(tzinfo=tz_obj)
     
     return dt
 
